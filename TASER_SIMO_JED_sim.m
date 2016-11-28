@@ -6,10 +6,12 @@
 % -- e-mail: studer@cornell.edu and oc66@cornell.edu
 % -------------------------------------------------------------------------
 % -- If you use this simulator or parts of it, then you must cite our 
-% -- paper: Oscar Castañeda, Tom Goldstein, Christoph Studer,
+% -- paper: 
+% -- Oscar Castañeda, Tom Goldstein, and Christoph Studer,
 % -- "Data Detection in Large Multi-Antenna Wireless Systems via
-% -- Approximate Semidefinite Relaxation," IEEE Transactions on Circuits
-% -- and Systems I, Nov. 2016
+% -- Approximate Semidefinite Relaxation," 
+% -- IEEE Transactions on Circuits and Systems I: Regular Papers,
+% -- vol. 63, no. 12, pp. 2334-2346, Dec. 2016.
 % =========================================================================
 
 function TASER_SIMO_JED_sim(varargin)
@@ -29,7 +31,8 @@ function TASER_SIMO_JED_sim(varargin)
     par.trials = 1e4;      % number of Monte-Carlo trials (transmissions)
     par.simName = ...      % simulation name (used for saving results)
       ['NCERR_', num2str(par.MR), 'x', num2str(par.MT), '_', ...
-        par.mod, '_', num2str(par.trials), 'Trials'] ;    
+       num2str(par.Time), 'TS_', par.mod, '_', ...
+       num2str(par.trials), 'Trials'];    
     par.SNRdB_list = ...   % list of SNR [dB] values to be simulated
       -10:2:10; 
     par.detector = ...     % define detector(s) to be simulated
@@ -102,7 +105,6 @@ function TASER_SIMO_JED_sim(varargin)
   % bit error rate:
   res.BER = zeros(length(par.detector),length(par.SNRdB_list));
 
-
   % trials loop
   tic
   for t=1:par.trials
@@ -173,7 +175,7 @@ function TASER_SIMO_JED_sim(varargin)
       time=toc;
       time_elapsed = time_elapsed + time;
       fprintf('estimated remaining simulation time: %3.0f min.\n', ...
-                time_elapsed*(par.trials/t-1)/60);
+              time_elapsed*(par.trials/t-1)/60);
       tic
     end      
   
@@ -235,47 +237,46 @@ function [idxhat,bithat] = SDR(par,Y)
   y = Y(:,1)*conj(par.symbols(1));
   H = Y(:,2:end);        
   switch par.mod
-      case 'BPSK'
-        % -- convert to real domain
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) ; imag(H) ];
-        % -- preprocessing for SDR  
-        T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];        
-        N = par.Time;        
-      case 'QPSK'
-        % -- convert to real domain
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) -imag(H) ; imag(H) real(H) ];
-        % -- preprocessing for SDR  
-        T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];        
-        N = par.Time*2-1;     
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'
+      % -- convert to real domain
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) ; imag(H) ];
+      % -- preprocessing for SDR  
+      T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];        
+      N = par.Time;        
+    case 'QPSK'
+      % -- convert to real domain
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) -imag(H) ; imag(H) real(H) ];
+      % -- preprocessing for SDR  
+      T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];        
+      N = par.Time*2-1;     
+    otherwise
+      error('modulation type not supported')
   end
   
   % -- solve SDP via CVX
   cvx_begin quiet
-    variable P(N,N) symmetric;
-    P == semidefinite(N);       
-    minimize( trace( T*P ) );
-    diag(P) == 1;              
+    variable S(N,N) symmetric;
+    S == semidefinite(N);       
+    minimize( trace( T*S ) );
+    diag(S) == 1;              
   cvx_end
 
   % -- post processing
-  [V,S] = eig(P);
-  root = V*sqrt(S);  
+  [V,U] = eig(S);
+  root = V*sqrt(U);  
   sest = sign(root(:,end));  
   shat(1) = conj(par.symbols(1));
   
   switch par.mod
-      case 'BPSK'
-        shat(2:par.Time,1) = sest(1:par.Time-1); 
-      case 'QPSK'
-        shat(1) = conj(par.symbols(1));
-        shat(2:par.Time,1) = sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
-        shat = conj(shat);
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'
+      shat(2:par.Time,1) = sest(1:par.Time-1); 
+    case 'QPSK'        
+      shat(2:par.Time,1) = sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
+      shat = conj(shat);
+    otherwise
+      error('modulation type not supported')
   end
   
   % -- compute outputs  
@@ -284,7 +285,6 @@ function [idxhat,bithat] = SDR(par,Y)
   bithat(mt,:,:) = par.bits(idxhat(mt,:),:)';  
   
 end
-
 
 %% detection via Triangular Approximate SEmidefinite Relaxation (TASER)
 function [idxhat,bithat] = TASER(par,Y)
@@ -294,58 +294,51 @@ function [idxhat,bithat] = TASER(par,Y)
   H = Y(:,2:end);  
       
   switch par.mod
-      case 'BPSK'
-        % -- convert to real domain
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) ; imag(H) ];
-        % -- preprocessing for SDR  
-        T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];
-        N = par.Time;        
-      case 'QPSK'
-        % -- convert to real domain
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) -imag(H) ; imag(H) real(H) ];
-        % -- preprocessing for SDR 
-        T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];
-        N = par.Time*2-1;  
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'
+      % -- convert to real domain
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) ; imag(H) ];
+      % -- preprocessing for SDR  
+      T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];           
+    case 'QPSK'
+      % -- convert to real domain
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) -imag(H) ; imag(H) real(H) ];
+      % -- preprocessing for SDR 
+      T = -[HR'*HR HR'*yR ; yR'*HR yR'*yR];        
+    otherwise
+      error('modulation type not supported')
   end
   
   % -- preconditioning for SDR
-  D = diag(1./sqrt(abs(diag(T))));
-  That = D*T*D;
-  stepsize = par.alphaScale/norm(That,2);
+  DInv = diag(1./sqrt(abs(diag(T))));
+  Ttilde = DInv*T*DInv;
+  stepsize = par.alphaScale/norm(Ttilde,2);
   
   % -- use standard gradient on non-convex problem  
-  gradf = @(R) 2*triu(That*R);
-  proxg = @(R,t) prox_normalizer(R,diag(D).^-1);
+  gradf = @(L) 2*tril(L*Ttilde);
+  proxg = @(L,t) prox_normalizer(L,diag(DInv).^-1);
   
-  x0 = eye(N);
-  x0 = prox_normalizer(x0,diag(D).^-1);
+  % Initialize Ltilde  
+  Ltilde = diag(diag(DInv).^-1);  
   
-  
-  % -- Fast Iterative Soft Thresholding [Beck & Tebouille, 2009]
-  xk = x0;
+  % -- Fast Iterative Soft Thresholding [Beck & Tebouille, 2009]  
   for k = 1:par.tmax
-    xk = proxg(xk-stepsize*gradf(xk)); % compute proxy    
-  end
-  A = xk;
+    Ltilde = proxg(Ltilde-stepsize*gradf(Ltilde)); % compute proxy    
+  end  
   
-  % -- post processing
-  rightvec = D*A(:,end);
-  sest = sign(rightvec);
+  % -- post processing  
+  sest = sign(Ltilde(end,:))';
   shat(1) = conj(par.symbols(1));
   
   switch par.mod
-      case 'BPSK'   
-        shat(2:par.Time,1) = sest(1:par.Time-1); 
-      case 'QPSK'
-        shat(1) = conj(par.symbols(1));
-        shat(2:par.Time,1) = sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
-        shat = conj(shat);
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'   
+      shat(2:par.Time,1) = sest(1:par.Time-1); 
+    case 'QPSK'        
+      shat(2:par.Time,1) = sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
+      shat = conj(shat);
+    otherwise
+      error('modulation type not supported')
   end
   
   % -- compute outputs  
@@ -355,10 +348,10 @@ function [idxhat,bithat] = TASER(par,Y)
   
 end
 
-% normalize rows of Z to 1 to satisfy diag(Z*Z')=1
+% normalize columns of Z to have norm equal to its corresponding scale
 function Q = prox_normalizer(Z,scale)
- [N,~] = size(Z); 
-  Q = Z.*((1./sqrt(sum(abs(Z).^2,2)).*scale)*ones(1,N));  
+  [N,~] = size(Z);
+  Q = Z.*(ones(N,1)*(1./sqrt(sum(abs(Z).^2,1)).*scale'));
 end
 
 
@@ -370,22 +363,22 @@ function [idxhat,bithat] = ML(par,Y)
   H = Y(:,2:end);  
       
   switch par.mod
-      case 'BPSK'
-        % -- convert to real domain
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) ; imag(H) ];
-        % -- preprocessing
-        T = [HR'*HR HR'*yR ; yR'*HR yR'*yR];
-        N = par.Time;
-      case 'QPSK'
-        % -- convert to real domain                  
-        yR = [real(y) ; imag(y) ];
-        HR = [ real(H) -imag(H) ; imag(H) real(H) ];
-        % -- preprocessing
-        T = [HR'*HR HR'*yR ; yR'*HR yR'*yR];
-        N = par.Time*2-1;        
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'
+      % -- convert to real domain
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) ; imag(H) ];
+      % -- preprocessing
+      T = [HR'*HR HR'*yR ; yR'*HR yR'*yR];
+      N = par.Time;
+    case 'QPSK'
+      % -- convert to real domain                  
+      yR = [real(y) ; imag(y) ];
+      HR = [ real(H) -imag(H) ; imag(H) real(H) ];
+      % -- preprocessing
+      T = [HR'*HR HR'*yR ; yR'*HR yR'*yR];
+      N = par.Time*2-1;        
+    otherwise
+      error('modulation type not supported')
   end
   
   symbols = [ -1 1 ];
@@ -441,13 +434,13 @@ function [idxhat,bithat] = ML(par,Y)
   shat(1) = conj(par.symbols(1));
   
   switch par.mod
-      case 'BPSK'  
-        shat(2:par.Time,1) = -sest(1:par.Time-1); 
-      case 'QPSK'
-        shat(1) = par.symbols(1);
-        shat(2:par.Time,1) = -sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
-      otherwise
-        error('modulation type not supported')
+    case 'BPSK'  
+      shat(2:par.Time,1) = -sest(1:par.Time-1); 
+    case 'QPSK'
+      shat(1) = par.symbols(1);
+      shat(2:par.Time,1) = -sest(1:par.Time-1) + 1i*sest(par.Time:end-1);  
+    otherwise
+      error('modulation type not supported')
   end
   
   % -- compute outputs  

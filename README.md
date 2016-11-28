@@ -12,10 +12,12 @@ If you are using the simulator (or parts of it) for a publication, then you MUST
 
 @article{CastanedaGoldsteinStuder:2016,
   author={O. Casta\~neda and T. Goldstein and C. Studer},
-  journal={IEEE Transactions on Circuits and Systems I},
+  journal={IEEE Transactions on Circuits and Systems I: Regular Papers},
   title={Data Detection in Large Multi-Antenna Wireless Systems via Approximate Semidefinite Relaxation},
-  number={99},
-  month={Nov.},
+  volume={63},
+  number={12},
+  pages={2334-2346},
+  month={Dec.},
   year={2016}
 }
 
@@ -47,4 +49,4 @@ Both the MIMO and SIMO simulators run with predefined simulation parameters. You
 
 We highly recommend you to execute the code step-by-step (using MATLAB's debug mode) in order to get a detailed understanding of the simulator. 
 
-# Version 0.1 (November 12, 2016) - oc66@cornell.edu - initial version for public access
+# Version 0.2 (November 27, 2016) - oc66@cornell.edu - re-expressing the code to match the algorithm as presented in the paper
